@@ -454,6 +454,8 @@ function loadS(){
 var S=loadS();
 function save(){ localStorage.setItem(KEY,JSON.stringify(S)) }
 S.logs=S.logs||{}; S.photoDates=S.photoDates||[]; S.badges=S.badges||{}; S.rewards=S.rewards||{};
+/* one-time switch to the muscle-focus split (Sep 2026) */
+if(S.profile&&!S.mf2w){ S.profile.days=6; S.mf2w=1; save() }
 
 /* ---------- dates ---------- */
 function d2s(d){ var m=d.getMonth()+1,dd=d.getDate(); return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd }
