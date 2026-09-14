@@ -258,7 +258,7 @@
       <div class="row">
         <div>
           <label for="f-days">Training days / week</label>
-          <select id="f-days"><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
+          <select id="f-days"><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
         </div>
         <div>
           <label for="f-pace">Pace</label>
@@ -345,7 +345,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v11 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -455,7 +455,7 @@ var S=loadS();
 function save(){ localStorage.setItem(KEY,JSON.stringify(S)) }
 S.logs=S.logs||{}; S.photoDates=S.photoDates||[]; S.badges=S.badges||{}; S.rewards=S.rewards||{};
 /* one-time switch to the muscle-focus split (Sep 2026) */
-if(S.profile&&!S.mf2w){ S.profile.days=6; S.mf2w=1; save() }
+if(S.profile&&S.mf2w!==2){ S.profile.days=6; S.mf2w=2; save() }
 
 /* ---------- dates ---------- */
 function d2s(d){ var m=d.getMonth()+1,dd=d.getDate(); return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd }
