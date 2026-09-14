@@ -239,15 +239,15 @@
     </div>
     <div class="card">
       <div class="row">
-        <div><label for="f-age">Age</label><input id="f-age" type="number" inputmode="numeric" min="16" max="90" value="30"></div>
+        <div><label for="f-age">Age</label><input id="f-age" type="number" inputmode="numeric" min="16" max="90" value="37"></div>
         <div><label for="f-sex">Sex</label><select id="f-sex"><option value="m">Male</option><option value="f">Female</option></select></div>
       </div>
       <div class="row">
-        <div><label for="f-h">Height (cm)</label><input id="f-h" type="number" inputmode="decimal" min="130" max="230" value="175"></div>
-        <div><label for="f-w">Weight now (kg)</label><input id="f-w" type="number" inputmode="decimal" min="35" max="250" step="0.1" value="85"></div>
+        <div><label for="f-h">Height (cm)</label><input id="f-h" type="number" inputmode="decimal" min="130" max="230" value="179"></div>
+        <div><label for="f-w">Weight now (kg)</label><input id="f-w" type="number" inputmode="decimal" min="35" max="250" step="0.1" value="113"></div>
       </div>
       <label for="f-goal">Goal weight (kg)</label>
-      <input id="f-goal" type="number" inputmode="decimal" min="35" max="250" step="0.1" value="75">
+      <input id="f-goal" type="number" inputmode="decimal" min="35" max="250" step="0.1" value="77">
       <label for="f-act">Day-to-day activity (outside workouts)</label>
       <select id="f-act">
         <option value="1.2">Mostly sitting (desk work)</option>
@@ -264,8 +264,8 @@
           <label for="f-pace">Pace</label>
           <select id="f-pace">
             <option value="300">Relaxed</option>
-            <option value="500" selected>Steady</option>
-            <option value="700">Strong</option>
+            <option value="500">Steady</option>
+            <option value="700" selected>Strong</option>
           </select>
         </div>
       </div>
@@ -345,7 +345,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v11 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v12 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -454,6 +454,11 @@ function loadS(){
 var S=loadS();
 function save(){ localStorage.setItem(KEY,JSON.stringify(S)) }
 S.logs=S.logs||{}; S.photoDates=S.photoDates||[]; S.badges=S.badges||{}; S.rewards=S.rewards||{};
+/* Marwan's profile is built in — the app never asks onboarding questions (Sep 2026) */
+if(!S.marwan1){
+  S.profile={age:37,sex:"m",h:179,w:113,goal:77,act:1.375,days:6,pace:700,start:(S.profile&&S.profile.start)||today()};
+  S.marwan1=1; S.mf2w=2; save();
+}
 /* one-time switch to the muscle-focus split (Sep 2026) */
 if(S.profile&&S.mf2w!==2){ S.profile.days=6; S.mf2w=2; save() }
 
@@ -544,7 +549,7 @@ var PLANS={
     T("Legs",[["Back squat","4×8"],["Romanian deadlift","3×10"],["Leg press","3×12"],["Calf raises","4×15"],["Plank","3×40s"]]),
     T("Upper + core",[["Incline press","3×10"],["Pull-ups or rows","3×8"],["Lateral raises","3×14"],["Hanging knee raise","3×12"],["Dead bug","3×12"]]),
     LISS],
- 6:[T("Back + core",[["Between sets: abs 30–40s","plank · dead bug"],["Lat pulldown","4×10"],["Chest-supported row","4×10"],["Seated cable row","3×12"],["One-arm DB row","3×10 each"],["Straight-arm pulldown","3×12"],["Back extension (light, slow)","3×12"],["Cardio finisher","20 min incline walk / bike"],["Stretch: lats · hips · hamstrings","10 min"]]),
+ 6:[T("Back + core",[["Between sets: abs 30–40s","plank · dead bug"],["Back extension (light, slow)","3×12"],["Bird dog","3×8 each"],["Glute bridge","3×12"],["Lat pulldown","4×10"],["Chest-supported row","4×10"],["Seated cable row","3×12"],["One-arm DB row","3×10 each"],["Straight-arm pulldown","3×12"],["Cardio finisher","20 min incline walk / bike"],["Stretch: lats · hips · hamstrings","10 min"]]),
     T("Shoulders & traps + core",[["Between sets: abs 30–40s","side plank · dead bug"],["Seated DB shoulder press","4×8–10"],["Lateral raises","4×12–15"],["Rear-delt fly","3×15"],["Face pulls","3×15"],["Shrugs (2s pause)","4×12–15"],["Cardio finisher","20 min incline walk / bike"],["Stretch: shoulders · neck · chest","10 min"]]),
     T("Legs + core (back-safe)",[["Between sets: abs 30–40s","plank · bird dog"],["Leg press","4×10"],["DB split squat","3×10 each"],["Leg curl","3×12"],["Leg extension","3×12"],["Glute bridge","3×12"],["Calf raises","4×15"],["Cardio finisher","20 min easy bike"],["Stretch: quads · hamstrings · glutes","10 min"]]),
     T("Chest + core",[["Between sets: abs 30–40s","dead bug · hollow hold"],["Bench press","4×8"],["Incline DB press","3×10"],["Cable fly","3×12"],["Dips","3×8–10"],["Push-ups","2×max"],["Cardio finisher","20 min incline walk / bike"],["Stretch: chest · shoulders · lats","10 min"]]),
@@ -697,8 +702,8 @@ function renderToday(){
   var wk=weekPlan(currentWeight(),S.profile), pts=projection(), goalDate=pts[pts.length-1];
   var left=Math.max(0,currentWeight()-S.profile.goal);
   el("todayHead").innerHTML = left<=0 ? "Goal weight. <span>Own it.</span>"
-    : "Lose <span>"+left.toFixed(1)+" kg</span> by "+fmt(goalDate.date)+".";
-  el("tGoalDate").textContent=fmt(goalDate.date);
+    : "Lose <span>"+left.toFixed(1)+" kg</span> by "+fmtY(goalDate.date)+".";
+  el("tGoalDate").textContent=fmtY(goalDate.date);
   countUp(el("tRate"),wk.kg,2," <small>kg/wk</small>");
   countUp(el("tCals"),wk.cals,0," <small>kcal</small>");
   countUp(el("tLeft"),left,1," <small>kg</small>");
