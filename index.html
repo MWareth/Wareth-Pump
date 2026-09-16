@@ -362,7 +362,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v13 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v14 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -789,35 +789,30 @@ function renderToday(){
   el("wInput").value=S.logs[t]&&S.logs[t].weight?S.logs[t].weight:"";
   renderSteps();
 
-  var wo=dayWorkout(d.getDay()), list=el("woList"), btn=el("woBtn"), chips=el("cardioChips");
-  var isCardio=!!(wo&&wo.n==="Cardio + core"), isRest=!wo;
-  var plan, sel=null;
-  if(isCardio||isRest){
-    var opts=isCardio?["walk","cycle","padel","tennis","shoulders"]:["rest","padel","tennis","cycle","shoulders"];
-    sel=(S.logs[t]&&S.logs[t].cardio)||(isCardio?(S.lastCardio||"walk"):"rest");
-    if(opts.indexOf(sel)===-1) sel=opts[0];
-    chips.innerHTML=opts.map(function(k){
-      return "<button aria-pressed=\""+(k===sel)+"\" data-act=\""+k+"\">"+ACT[k].lbl+"</button>";
-    }).join("");
-    chips.classList.remove("hidden");
-    chips.querySelectorAll("button").forEach(function(bt){
-      bt.addEventListener("click",function(){
-        var k=bt.getAttribute("data-act");
-        S.logs[t]=S.logs[t]||{}; S.logs[t].cardio=k;
-        if(k!=="rest") S.lastCardio=k;
-        save(); renderToday();
-      });
+  var wo=dayWorkout(d.getDay()), btn=el("woBtn"), chips=el("cardioChips");
+  /* fixed calendar + free choice: the scheduled day is the default, but any
+     workout can be picked for today without moving the week around */
+  var OPTS=[["p0","🏋️ Back"],["p1","💪 Shoulders"],["p2","🦵 Legs"],["p3","🛡️ Chest"],["p4","🦾 Arms"],["p5","🧘 Recovery"],["rest","😴 Rest"],["padel","🥎 Padel"],["tennis","🎾 Tennis"],["cycle","🚴 Cycling"],["walk","🚶 Walk"]];
+  function pickPlan(k){ if(k&&k.charAt(0)==="p") return PLANS[6][+k.slice(1)]||null; return ACT[k]||null }
+  var schedK = wo ? (S.profile.days===6 ? "p"+SLOTS[6].indexOf(d.getDay()) : null) : "rest";
+  var sel=(S.logs[t]&&(S.logs[t].pick||S.logs[t].cardio))||schedK;
+  if(sel&&!pickPlan(sel)) sel=schedK;
+  var plan=pickPlan(sel)||wo||ACT.rest;
+  chips.innerHTML=OPTS.map(function(o){
+    return "<button aria-pressed=\""+(o[0]===sel)+"\" data-act=\""+o[0]+"\">"+o[1]+"</button>";
+  }).join("");
+  chips.classList.remove("hidden");
+  chips.querySelectorAll("button").forEach(function(bt){
+    bt.addEventListener("click",function(){
+      var k=bt.getAttribute("data-act");
+      S.logs[t]=S.logs[t]||{}; S.logs[t].pick=k; save(); renderToday();
     });
-    plan=ACT[sel];
-    el("woName").textContent=plan.n;
-  } else {
-    chips.classList.add("hidden");
-    plan=wo;
-    el("woName").textContent=plan.n+" — about 45–60 min";
-  }
+  });
+  var schedPlan=pickPlan(schedK);
+  el("woName").textContent = plan.n + (schedK&&sel!==schedK&&schedPlan ? " · swapped (plan said "+schedPlan.n.split(" ")[0].replace(/[^A-Za-z]/g,"")+")" : "");
   buildWorkout(plan,t);
   var done=S.logs[t]&&S.logs[t].wo;
-  var activeDay=!isRest||(sel&&sel!=="rest");
+  var activeDay=sel!=="rest";
   btn.textContent=done?"Done today ✓":(activeDay?"Mark workout done ✓":"Mark recovery done ✓");
   btn.className=done?"btn done":"btn";
   el("woUndo").classList.toggle("hidden",!done);
