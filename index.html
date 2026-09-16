@@ -205,6 +205,12 @@
   .results .kc{color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.8rem}
   .portion{display:flex;gap:10px;align-items:flex-end;margin-top:4px}
   .portion .btn{flex:0 0 auto;width:auto;padding:12px 22px}
+  .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .quick button{background:var(--surface2);border:1px solid var(--line-soft);border-radius:12px;padding:10px 6px;text-align:center}
+  .quick button:active{transform:translateY(1px);border-color:var(--accent)}
+  .quick .qe{font-size:1.35rem;line-height:1.2}
+  .quick .qn{font-weight:900;font-style:italic;font-size:.74rem;margin-top:2px;text-transform:uppercase;letter-spacing:.03em}
+  .quick .qk{color:var(--ink2);font-size:.66rem;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px}
 
   /* tabs */
   nav{
@@ -362,7 +368,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v14 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v15 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -375,7 +381,9 @@
       </div>
       <div class="card">
         <h2>Add food</h2>
-        <input id="fSearch" type="search" placeholder="Search… chicken, rice, shawarma, dates" autocomplete="off" style="margin-top:10px">
+        <p class="sub" style="margin-top:6px">Quick add — one tap logs the recommended portion.</p>
+        <div class="quick" id="fQuick"></div>
+        <input id="fSearch" type="search" placeholder="Search… chicken, rice, shawarma, dates" autocomplete="off" style="margin-top:12px">
         <div class="results hidden" id="fResults"></div>
         <div class="portion hidden" id="fPortion">
           <div style="flex:1"><label for="fGrams" id="fPortLbl">Grams</label><input id="fGrams" type="number" inputmode="numeric" min="1" max="3000"></div>
@@ -542,8 +550,8 @@ function projection(){
 
 /* ---------- training templates ---------- */
 function T(n,ex){ return {n:n,ex:ex} }
-var REST=T("Rest & recover",[["Hit your 10k steps","all day"],["Padel / tennis / ride","optional"],["Stretch","10 min"]]);
-var LISS=T("Cardio + core",[["Walk, cycle, padel or tennis","your pick"],["Plank","3×40s"],["Dead bug","3×12"]]);
+var REST=T("Rest & recover",[["Hit your 10k steps","all day"],["Padel / squash / ride","optional"],["Stretch","10 min"]]);
+var LISS=T("Cardio + core",[["Walk, cycle, padel or squash","your pick"],["Plank","3×40s"],["Dead bug","3×12"]]);
 /* choosable cardio-day activities */
 var ACT={
  rest:  {lbl:"😴 Rest",   n:"Rest day — active recovery",      ex:[["Hit your 10k steps","all day"],["Stretch","10 min"]]},
@@ -551,6 +559,7 @@ var ACT={
  cycle: {lbl:"🚴 Cycling",n:"Cardio — cycling",                ex:[["Ride","45–60 min"],["Plank","3×40s"],["Side plank","3×30s each"]]},
  padel: {lbl:"🥎 Padel",  n:"Padel day",                       ex:[["Warm-up rallies","10 min"],["Match play","60–90 min"],["Cool-down stretch","5 min"]]},
  tennis:{lbl:"🎾 Tennis", n:"Tennis day",                      ex:[["Warm-up rallies","10 min"],["Sets / match play","60–90 min"],["Cool-down stretch","5 min"]]},
+ squash:{lbl:"🎾 Squash", n:"Squash day",                      ex:[["Warm-up rallies","10 min"],["Court games","45–60 min"],["Cool-down stretch","5 min"]]},
  shoulders:{lbl:"🏋️ Shoulders", n:"Shoulders, traps & abs",   ex:[["Seated DB shoulder press","4×8–10"],["Lateral raises","4×12–15"],["Rear-delt fly","3×15"],["Face pulls","3×15"],["Shrugs (2s pause)","4×12–15"],["Farmer's carry","3×40 m"],["Hanging knee raises","3×12"],["Cable crunch","3×15"],["Plank","3×45s"]]}
 };
 var PLANS={
@@ -792,7 +801,7 @@ function renderToday(){
   var wo=dayWorkout(d.getDay()), btn=el("woBtn"), chips=el("cardioChips");
   /* fixed calendar + free choice: the scheduled day is the default, but any
      workout can be picked for today without moving the week around */
-  var OPTS=[["p0","🏋️ Back"],["p1","💪 Shoulders"],["p2","🦵 Legs"],["p3","🛡️ Chest"],["p4","🦾 Arms"],["p5","🧘 Recovery"],["rest","😴 Rest"],["padel","🥎 Padel"],["tennis","🎾 Tennis"],["cycle","🚴 Cycling"],["walk","🚶 Walk"]];
+  var OPTS=[["p0","🏋️ Back"],["p1","💪 Shoulders"],["p2","🦵 Legs"],["p3","🛡️ Chest"],["p4","🦾 Arms"],["p5","🧘 Recovery"],["rest","😴 Rest"],["padel","🥎 Padel"],["squash","🎾 Squash"],["cycle","🚴 Cycling"],["walk","🚶 Walk"]];
   function pickPlan(k){ if(k&&k.charAt(0)==="p") return PLANS[6][+k.slice(1)]||null; return ACT[k]||null }
   var schedK = wo ? (S.profile.days===6 ? "p"+SLOTS[6].indexOf(d.getDay()) : null) : "rest";
   var sel=(S.logs[t]&&(S.logs[t].pick||S.logs[t].cardio))||schedK;
@@ -1045,6 +1054,31 @@ el("fCustom").addEventListener("click",function(){
   var k=+prompt("Roughly how many calories?"); if(!(k>0)||k>5000) return toast("Enter a calorie number");
   addFood(n.trim(),0,k);
 });
+
+/* quick-add tiles: one tap logs a recommended portion */
+var QUICK=[
+ ["🍗","Chicken","Chicken breast (grilled)",150],
+ ["🥩","Meat","Beef steak",150],
+ ["🐟","Fish","White fish",200],
+ ["🥗","Veggies","Mixed salad",200],
+ ["🍚","Rice","White rice (cooked)",150],
+ ["🥚","Eggs (2)","Egg",100]
+];
+(function(){
+  var q=el("fQuick");
+  q.innerHTML=QUICK.map(function(x,i){
+    var f=FOODS.filter(function(ff){return ff[0]===x[2]})[0];
+    var k=Math.round(x[3]*f[1]/100);
+    return '<button data-i="'+i+'" aria-label="Add '+esc(x[1])+'"><div class="qe">'+x[0]+'</div><div class="qn">'+esc(x[1])+'</div><div class="qk">'+x[3]+' g · '+k+' kcal</div></button>';
+  }).join("");
+  q.querySelectorAll("button").forEach(function(bt){
+    bt.addEventListener("click",function(){
+      var x=QUICK[+bt.getAttribute("data-i")];
+      var f=FOODS.filter(function(ff){return ff[0]===x[2]})[0];
+      addFood(f[0],x[3],x[3]*f[1]/100,f[4]);
+    });
+  });
+})();
 
 function renderAll(){ renderToday(); renderFood(); renderPlan(); renderProgress(); renderAwards() }
 
