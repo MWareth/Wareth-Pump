@@ -142,6 +142,11 @@
   .day .ex{color:var(--ink2);font-size:.85rem;margin-top:1px}
   .day.rest .nm{color:var(--ink2);font-weight:700}
 
+  /* apple watch stats */
+  .watchrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .wstat{background:var(--surface2);border:1px solid var(--line-soft);border-radius:999px;padding:5px 12px;font-size:.78rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wstat.hidden{display:none}
+
   /* workout calendar */
   .calhead{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
   .calhead .cbtn{width:34px;height:34px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;font-size:1.05rem;color:var(--ink2)}
@@ -353,6 +358,10 @@
             <input id="stInput" type="number" inputmode="numeric" min="0" max="100000" step="100" placeholder="Steps today">
             <button class="btn" id="stSave" style="flex:0 0 auto;width:auto;padding:12px 18px">Log</button>
           </div>
+          <div class="watchrow hidden" id="watchRow">
+            <span class="wstat" id="wsHr"></span>
+            <span class="wstat" id="wsKcal"></span>
+          </div>
         </div>
       </div>
 
@@ -394,7 +403,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v20 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v21 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -757,6 +766,12 @@ function renderSteps(){
       n.textContent=Math.round(steps*k).toLocaleString(); if(k<1)requestAnimationFrame(f) })(performance.now());
   }
   el("stInput").value=steps||"";
+  var log=S.logs[t]||{}, hasW=!!(log.hr||log.kcal);
+  el("watchRow").classList.toggle("hidden",!hasW);
+  el("wsHr").classList.toggle("hidden",!log.hr);
+  el("wsKcal").classList.toggle("hidden",!log.kcal);
+  if(log.hr) el("wsHr").textContent="❤️ "+log.hr+" bpm";
+  if(log.kcal) el("wsKcal").textContent="🔥 "+log.kcal.toLocaleString()+" kcal burned";
 }
 
 /* ---------- per-set exercise logging ---------- */
@@ -1313,18 +1328,25 @@ function boot(){
   el("editBtn").classList.remove("hidden");
   checkBadges(); renderAll();
 }
-/* Apple Health bridge: opening the app as /?steps=12345 logs today's steps.
-   Pair with an iOS Shortcut that reads Health steps and opens this URL. */
+/* Apple Health / Watch bridge: opening the app as
+   /?steps=12345&kcal=640&hr=72 logs today's steps, active calories and
+   latest heart rate. Pair with an iOS Shortcut that reads Health and
+   opens this URL. Steps/kcal keep the highest value of the day. */
 try{
-  var _qs=new URLSearchParams(location.search), _qsteps=parseInt(_qs.get("steps"),10);
-  if(_qsteps>0&&_qsteps<=200000){
+  var _qs=new URLSearchParams(location.search);
+  var _qsteps=parseInt(_qs.get("steps"),10), _qkcal=parseInt(_qs.get("kcal"),10), _qhr=parseInt(_qs.get("hr"),10);
+  var _okSteps=_qsteps>0&&_qsteps<=200000, _okKcal=_qkcal>0&&_qkcal<=20000, _okHr=_qhr>=25&&_qhr<=250;
+  if(_okSteps||_okKcal||_okHr){
     var _tq=today(); S.logs[_tq]=S.logs[_tq]||{};
-    var _prev=S.logs[_tq].steps||0;
-    if(_qsteps>_prev){ S.logs[_tq].steps=_qsteps; save(); }
+    var _prev=S.logs[_tq].steps||0, _bits=[];
+    if(_okSteps&&_qsteps>_prev){ S.logs[_tq].steps=_qsteps; _bits.push(_qsteps.toLocaleString()+" steps") }
+    if(_okKcal&&_qkcal>(S.logs[_tq].kcal||0)){ S.logs[_tq].kcal=_qkcal; _bits.push(_qkcal.toLocaleString()+" kcal burned") }
+    if(_okHr){ S.logs[_tq].hr=_qhr; _bits.push(_qhr+" bpm") }
+    save();
     history.replaceState(null,"",location.pathname);
     setTimeout(function(){
-      if(_qsteps>_prev){ toast("⌚ "+_qsteps.toLocaleString()+" steps synced from Health"); if(_qsteps>=STEP_GOAL&&_prev<STEP_GOAL) celebrate(); }
-      else toast("⌚ Health sync: already logged "+_prev.toLocaleString()+" steps");
+      if(_bits.length){ toast("⌚ Synced: "+_bits.join(" · ")); if(_okSteps&&_qsteps>=STEP_GOAL&&_prev<STEP_GOAL) celebrate(); }
+      else toast("⌚ Health sync: already up to date");
     },700);
   }
 }catch(e){}
