@@ -142,6 +142,30 @@
   .day .ex{color:var(--ink2);font-size:.85rem;margin-top:1px}
   .day.rest .nm{color:var(--ink2);font-weight:700}
 
+  /* workout calendar */
+  .calhead{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+  .calhead .cbtn{width:34px;height:34px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;font-size:1.05rem;color:var(--ink2)}
+  .calmon{font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:.07em;font-size:.95rem}
+  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:10px}
+  .cdow{text-align:center;font-size:.58rem;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;padding:3px 0}
+  .cday{min-height:54px;border-radius:9px;background:var(--surface2);padding:3px 2px 4px;display:flex;flex-direction:column;gap:2px;border:1.5px solid transparent;overflow:hidden}
+  .cday.blank{background:transparent}
+  .cday .dn{font-size:.62rem;font-weight:800;color:var(--ink3);font-variant-numeric:tabular-nums}
+  .cday.today{border-color:var(--accent);box-shadow:0 0 10px var(--glow)}
+  .cday.today .dn{color:var(--accent)}
+  .cday.sel{background:var(--surface3)}
+  .cpill{font-size:.47rem;font-weight:900;border-radius:4px;padding:1.5px 2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;letter-spacing:0;text-align:center}
+  .cpill.done{background:var(--good);color:#04140C}
+  .cpill.plan{background:var(--surface3);color:var(--ink2)}
+  .cpill.more{background:transparent;color:var(--good);padding-top:0}
+  .cdhead{display:flex;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);font-weight:900;font-style:italic;text-transform:uppercase;font-size:.8rem;letter-spacing:.06em}
+  .cdhead .dw{color:var(--ink2)}
+  .cdrow{display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px dashed var(--line-soft);font-size:.92rem;font-weight:700}
+  .cdrow:last-child{border-bottom:0}
+  .cdrow .dot{flex:0 0 9px;height:9px;border-radius:999px;background:var(--good);box-shadow:0 0 8px rgba(61,214,140,.5)}
+  .cdrow.plan .dot{background:var(--ink3);box-shadow:none}
+  .cdrow .st{margin-left:auto;color:var(--ink3);font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+
   /* chart */
   .chartbox{position:relative;margin-top:8px}
   .chartbox svg{display:block;width:100%;height:auto}
@@ -370,7 +394,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v19 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v20 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -404,6 +428,17 @@
     <!-- PLAN -->
     <div id="pane-plan" class="pane hidden">
       <div class="hero"><h1>The <span>Week</span></h1></div>
+      <div class="card">
+        <h2>Workout calendar</h2>
+        <div class="calhead">
+          <button class="cbtn" id="calPrev" aria-label="Previous month">‹</button>
+          <div class="calmon" id="calMon"></div>
+          <button class="cbtn" id="calNext" aria-label="Next month">›</button>
+        </div>
+        <div class="calgrid" id="calGrid"></div>
+        <div id="calDetail"></div>
+        <p class="hint">Green = logged. Grey = planned. Tap a day for details.</p>
+      </div>
       <div class="card" id="weekCard"></div>
       <div class="card">
         <h2>How the estimate works</h2>
@@ -869,7 +904,81 @@ function renderPlan(){
   el("mathNote").textContent="Your body burns ~"+Math.round(wk.tdee)+" kcal/day at your current weight. Eating ~"+wk.cals+
     " kcal/day gives a "+Math.round(wk.def)+" kcal deficit → about "+wk.kg.toFixed(2)+
     " kg/week, capped at a safe 1% of body weight. The 10k daily steps are part of the plan — they're most of your non-gym burn. The estimate re-plans itself from your latest logged weight.";
+  renderCal();
 }
+
+/* ---------- workout calendar (month grid like the coach app) ---------- */
+var SPLIT_LBL=["Back","Shoulders","Legs","Chest","Arms","Recovery"];
+var calNow=new Date(), calY=calNow.getFullYear(), calM=calNow.getMonth(), calSel=null;
+function calPickLabel(k){
+  if(/^p\d+$/.test(k)) return SPLIT_LBL[+k.slice(1)]||null;
+  return {rest:"Rest",walk:"Walk",cycle:"Cycling",padel:"Padel",tennis:"Tennis",squash:"Squash",shoulders:"Shoulders"}[k]||null;
+}
+function calSchedLabel(dow){
+  var i=SLOTS[S.profile.days].indexOf(dow);
+  if(i===-1) return null;
+  return S.profile.days===6 ? SPLIT_LBL[i] : PLANS[S.profile.days][i].n;
+}
+function calDayInfo(ds,dow){
+  var log=S.logs[ds]||{};
+  var raw=log.picks||log.pick||log.cardio;
+  var sel=Array.isArray(raw)?raw.slice():(raw?[raw]:[]);
+  var labels=sel.map(calPickLabel).filter(function(l){return l&&l!=="Rest"});
+  if(log.wo){
+    if(!labels.length) labels=[calSchedLabel(dow)||"Workout"];
+    return {state:"done",labels:labels};
+  }
+  if(ds>=today()){
+    if(labels.length) return {state:"plan",labels:labels};
+    var s=calSchedLabel(dow);
+    return s?{state:"plan",labels:[s]}:{state:"rest",labels:[]};
+  }
+  return {state:"none",labels:[]};
+}
+function renderCal(){
+  var mEl=el("calMon"); if(!mEl) return;
+  mEl.textContent=MONTHS[calM]+" "+calY;
+  var first=new Date(calY,calM,1), lead=(first.getDay()+6)%7; /* Monday-first */
+  var nDays=new Date(calY,calM+1,0).getDate(), t=today();
+  var html=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(function(d){return '<div class="cdow">'+d+'</div>'}).join("");
+  for(var b=0;b<lead;b++) html+='<div class="cday blank"></div>';
+  for(var d=1;d<=nDays;d++){
+    var ds=d2s(new Date(calY,calM,d)), info=calDayInfo(ds,new Date(calY,calM,d).getDay());
+    var cls="cday"+(ds===t?" today":"")+(ds===calSel?" sel":"");
+    var pills="";
+    if(info.state==="done"||(info.state==="plan"&&ds>=t)){
+      var cap=info.labels.slice(0,2), extra=info.labels.length-cap.length;
+      var SH={Shoulders:"Shldrs",Recovery:"Recov",Cycling:"Cycle"};
+      pills=cap.map(function(l){return '<div class="cpill '+(info.state==="done"?"done":"plan")+'">'+esc(SH[l]||l)+'</div>'}).join("");
+      if(extra>0) pills+='<div class="cpill more">+'+extra+'</div>';
+    }
+    html+='<div class="'+cls+'" data-d="'+ds+'"><span class="dn">'+d+'</span>'+pills+'</div>';
+  }
+  el("calGrid").innerHTML=html;
+  el("calGrid").querySelectorAll(".cday[data-d]").forEach(function(c){
+    c.addEventListener("click",function(){
+      var ds=c.getAttribute("data-d");
+      calSel=(calSel===ds)?null:ds; renderCal();
+    });
+  });
+  var det=el("calDetail"), out="";
+  if(calSel){
+    var sd=s2d(calSel), info2=calDayInfo(calSel,sd.getDay());
+    out='<div class="cdhead"><span>'+fmt(calSel)+'</span><span class="dw">'+DOWS[sd.getDay()]+'</span></div>';
+    if(info2.state==="done"){
+      out+=info2.labels.map(function(l){return '<div class="cdrow"><span class="dot"></span>'+esc(l)+'<span class="st">Logged ✓</span></div>'}).join("");
+    }else if(info2.state==="plan"){
+      out+=info2.labels.map(function(l){return '<div class="cdrow plan"><span class="dot"></span>'+esc(l)+'<span class="st">Planned</span></div>'}).join("");
+    }else if(info2.state==="rest"){
+      out+='<div class="cdrow plan"><span class="dot"></span>Rest day<span class="st">Recover</span></div>';
+    }else{
+      out+='<div class="cdrow plan"><span class="dot"></span>Nothing logged<span class="st">—</span></div>';
+    }
+  }
+  det.innerHTML=out;
+}
+el("calPrev").addEventListener("click",function(){ calM--; if(calM<0){calM=11;calY--} calSel=null; renderCal() });
+el("calNext").addEventListener("click",function(){ calM++; if(calM>11){calM=0;calY++} calSel=null; renderCal() });
 
 function renderProgress(){
   var m=metrics();
