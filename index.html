@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#050607">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wareth Pump">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 </head>
 <body>
 <title>Wareth Zone</title>
@@ -403,7 +410,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v21 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v22 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -481,6 +488,15 @@
         <h2>Photo diary</h2>
         <div class="grid" id="photoGrid"></div>
         <p class="sub hidden" id="noPhotos" style="margin-top:8px">No photos yet — add your first from the Today tab.</p>
+      </div>
+      <div class="card">
+        <h2>Backup &amp; restore</h2>
+        <p class="sub" style="margin-top:6px">Everything — logs, weights, photos, badges — into one file. Use it to move to a new icon or a new phone.</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn ghost" id="bkSave">💾 Save backup</button>
+          <button class="btn ghost" id="bkLoad">📥 Restore</button>
+        </div>
+        <input id="bkFile" type="file" accept="application/json,.json" class="hidden">
       </div>
     </div>
 
@@ -1318,6 +1334,49 @@ el("phInput").addEventListener("change",function(){
   }).catch(function(){ toast("Couldn't read that photo — try again") });
   el("phInput").value="";
 });
+
+/* ---------- backup & restore ---------- */
+function wpExport(){
+  return Promise.all(S.photoDates.map(function(d){
+    return phGet(d).then(function(src){ return {date:d,src:src} });
+  })).then(function(ph){
+    return JSON.stringify({wp:1, saved:today(), state:S, photos:ph.filter(function(p){return p.src})});
+  });
+}
+function wpImport(txt){
+  var data=JSON.parse(txt);
+  if(!data||data.wp!==1||!data.state||!data.state.logs) throw new Error("not a backup");
+  localStorage.setItem(KEY,JSON.stringify(data.state));
+  var ps=data.photos||[];
+  return Promise.all(ps.map(function(p){ return phPut(p.date,p.src) }))
+    .then(function(){ toast("Restored ✓ reloading…"); setTimeout(function(){location.reload()},900) });
+}
+el("bkSave").addEventListener("click",function(){
+  wpExport().then(function(json){
+    var blob=new Blob([json],{type:"application/json"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="wareth-pump-backup-"+today()+".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Backup ready — save it to Files 💾");
+  }).catch(function(){ toast("Backup failed — try again") });
+});
+el("bkLoad").addEventListener("click",function(){ el("bkFile").click() });
+el("bkFile").addEventListener("change",function(){
+  var f=el("bkFile").files[0]; el("bkFile").value="";
+  if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{ wpImport(r.result).catch(function(){ toast("Restore failed — try again") }) }
+    catch(e){ toast("That file isn't a Wareth Pump backup") }
+  };
+  r.readAsText(f);
+});
+
+/* ---------- PWA: offline cache ---------- */
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+  navigator.serviceWorker.register("./sw.js").catch(function(){});
+}
 
 /* ---------- boot ---------- */
 function boot(){
