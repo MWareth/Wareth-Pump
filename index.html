@@ -442,7 +442,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v24 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v25 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -1524,8 +1524,8 @@ function healthToast(r){
   else toast("⌚ Health sync: already up to date");
 }
 function syncText(txt){
-  var kv={}, re=/\b(date|steps|kcal|hr|sleep|hrv|rhr)\s*[=:]\s*([^=]*?)(?=\s+\b(?:date|steps|kcal|hr|sleep|hrv|rhr)\s*[=:]|$)/gi, m;
-  String(txt||"").replace(/\n/g," ").replace(re,function(_,k,v){ kv[k.toLowerCase()]=v.trim(); return "" });
+  var kv={}, parts=String(txt||"").split(/(date|steps|kcal|hrv|rhr|hr|sleep)\s*[=:]/i);
+  for(var i=1;i<parts.length;i+=2) kv[parts[i].toLowerCase()]=parts[i+1].trim();
   if(!Object.keys(kv).length) return toast("No watch data copied — run Wareth Sync first");
   var r=applyHealth(function(k){return kv[k]});
   checkBadges(); renderAll(); healthToast(r);
