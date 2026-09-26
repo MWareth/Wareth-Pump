@@ -154,6 +154,31 @@
   .wstat{background:var(--surface2);border:1px solid var(--line-soft);border-radius:999px;padding:5px 12px;font-size:.78rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
   .wstat.hidden{display:none}
 
+  /* recovery (Apple Watch: sleep, HRV, resting HR) */
+  .rec{background:linear-gradient(135deg,var(--surface) 0%,#101a24 100%)}
+  .rectop{display:flex;align-items:flex-end;gap:14px;margin-top:6px}
+  .recn{font-size:3.2rem;font-weight:900;font-style:italic;line-height:1;font-variant-numeric:tabular-nums}
+  .recn small{font-size:1.2rem;color:var(--ink2)}
+  .rec.g .recn{color:var(--good);text-shadow:0 0 22px rgba(61,214,140,.35)}
+  .rec.y .recn{color:#FFC857;text-shadow:0 0 22px rgba(255,200,87,.3)}
+  .rec.r .recn{color:#FF6B5E;text-shadow:0 0 22px rgba(255,107,94,.3)}
+  .reczone{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-style:italic;text-transform:uppercase;font-size:.78rem;letter-spacing:.05em;padding-bottom:8px}
+  .reczone i{width:9px;height:9px;border-radius:999px;background:currentColor;box-shadow:0 0 8px currentColor}
+  .rec.g .reczone{color:var(--good)} .rec.y .reczone{color:#FFC857} .rec.r .reczone{color:#FF6B5E}
+  .recadv{margin:6px 0 0;color:var(--ink2);font-size:.88rem}
+  .recgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+  .recm{background:var(--surface2);border:1px solid var(--line-soft);border-radius:12px;padding:10px}
+  .recm .k{font-size:.6rem;font-weight:900;font-style:italic;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}
+  .recm .v{font-size:1.25rem;font-weight:900;font-style:italic;font-variant-numeric:tabular-nums;margin-top:2px}
+  .recm .v small{font-size:.7rem;color:var(--ink2);font-weight:800}
+  .recm .dl{font-size:.66rem;font-weight:800;color:var(--ink3);margin-top:1px;font-variant-numeric:tabular-nums}
+  .recm .dl.up{color:var(--good)} .recm .dl.dn{color:#FF8A7A}
+  .recweek{display:flex;gap:6px;align-items:flex-end;height:46px;margin-top:14px}
+  .recweek div{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end}
+  .recweek b{display:block;width:100%;border-radius:4px;background:var(--surface3);min-height:3px}
+  .recweek b.g{background:var(--good)} .recweek b.y{background:#FFC857} .recweek b.r{background:#FF6B5E}
+  .recweek span{font-size:.56rem;font-weight:800;color:var(--ink3);text-transform:uppercase}
+
   /* workout calendar */
   .calhead{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
   .calhead .cbtn{width:34px;height:34px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;font-size:1.05rem;color:var(--ink2)}
@@ -345,6 +370,12 @@
         <h1 id="todayHead"></h1>
       </div>
 
+      <div class="card rec" id="recCard">
+        <h2>Today&rsquo;s recovery ⌚</h2>
+        <div id="recBody"></div>
+        <button class="undo" id="recManual">Enter sleep / HRV / resting HR manually</button>
+      </div>
+
       <div class="card stepcard">
         <div class="ringwrap">
           <svg viewBox="0 0 132 132" aria-hidden="true">
@@ -410,7 +441,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v22 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v23 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -790,6 +821,73 @@ function renderSteps(){
   if(log.kcal) el("wsKcal").textContent="🔥 "+log.kcal.toLocaleString()+" kcal burned";
 }
 
+/* ---------- recovery: Apple Watch sleep + HRV + resting HR ----------
+   Each metric is scored against Marwan's own 7-day average (previous
+   days, not today): HRV above average and resting HR below average mean
+   the body has recovered. Needs 3+ days of history before it's personal;
+   until then HRV/RHR count as neutral and sleep carries the score. */
+var SLEEP_NEED=7.5;
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
+function sleepHours(v){
+  v=parseFloat(v); if(!(v>0)) return null;
+  if(v>1440) v/=3600; else if(v>24) v/=60;   /* Shortcuts may send seconds or minutes */
+  return v>=0.5&&v<=16 ? Math.round(v*10)/10 : null;
+}
+function recBase(ds,f){
+  var d=s2d(ds), vals=[];
+  for(var i=1;i<=7;i++){ var k=d2s(new Date(d.getTime()-i*864e5)), l=S.logs[k]; if(l&&l[f]) vals.push(l[f]) }
+  return vals.length>=3 ? vals.reduce(function(a,b){return a+b},0)/vals.length : null;
+}
+function recScore(ds){
+  var l=S.logs[ds]; if(!l||!(l.sleep||l.hrv||l.rhr)) return null;
+  var parts=[], bH=recBase(ds,"hrv"), bR=recBase(ds,"rhr"), bS=recBase(ds,"sleep");
+  if(l.hrv) parts.push([0.45, bH ? clamp(50+(l.hrv/bH-1)*200,0,100) : 50]);
+  if(l.rhr) parts.push([0.25, bR ? clamp(50+(bR-l.rhr)/bR*400,0,100) : 50]);
+  if(l.sleep) parts.push([0.30, clamp(l.sleep/SLEEP_NEED*100,0,100)]);
+  var w=0,t=0; parts.forEach(function(p){ w+=p[0]; t+=p[0]*p[1] });
+  var sc=Math.round(t/w);
+  return {score:sc, zone:sc>=67?"g":sc>=34?"y":"r", base:{hrv:bH,rhr:bR,sleep:bS}, log:l};
+}
+function renderRecovery(){
+  var t=today(), r=recScore(t), card=el("recCard"), body=el("recBody");
+  card.classList.remove("g","y","r");
+  if(!r){
+    body.innerHTML='<p class="sub" style="margin-top:6px">Run your Health shortcut after you wake up — your watch&rsquo;s sleep, HRV and resting heart rate turn into a daily readiness score.</p>';
+    return;
+  }
+  card.classList.add(r.zone);
+  var ZN={g:["Green","Ready to push — go heavy today 💪"],y:["Amber","Train, but keep it moderate — no PR attempts"],r:["Red","Recovery day — Recovery chip, walk, stretch"]};
+  function delta(v,b,unit,lowerBetter,dec){
+    if(!v) return '<div class="dl">—</div>';
+    if(!b) return '<div class="dl">building avg</div>';
+    var d=v-b, good=lowerBetter?d<0:d>0, str=(d>0?"+":"")+d.toFixed(dec)+unit;
+    return '<div class="dl '+(Math.abs(d)<(dec?0.05:0.5)?"":(good?"up":"dn"))+'">'+str+' vs avg</div>';
+  }
+  var l=r.log, html='<div class="rectop"><div class="recn">'+r.score+'<small>%</small></div>'+
+    '<div class="reczone"><i></i>'+ZN[r.zone][0]+'</div></div>'+
+    '<p class="recadv">'+ZN[r.zone][1]+'</p>'+
+    '<div class="recgrid">'+
+    '<div class="recm"><div class="k">Sleep</div><div class="v">'+(l.sleep?l.sleep+'<small> h</small>':'—')+'</div>'+delta(l.sleep,r.base.sleep,"h",false,1)+'</div>'+
+    '<div class="recm"><div class="k">HRV</div><div class="v">'+(l.hrv?l.hrv+'<small> ms</small>':'—')+'</div>'+delta(l.hrv,r.base.hrv,"",false,0)+'</div>'+
+    '<div class="recm"><div class="k">Resting HR</div><div class="v">'+(l.rhr?l.rhr+'<small> bpm</small>':'—')+'</div>'+delta(l.rhr,r.base.rhr,"",true,0)+'</div>'+
+    '</div><div class="recweek">';
+  for(var i=6;i>=0;i--){
+    var k=d2s(new Date(s2d(t).getTime()-i*864e5)), rs=recScore(k);
+    html+='<div><b class="'+(rs?rs.zone:"")+'" style="height:'+(rs?Math.max(8,rs.score):6)+'%"></b><span>'+DOWS[s2d(k).getDay()][0]+'</span></div>';
+  }
+  body.innerHTML=html+'</div>';
+}
+el("recManual").addEventListener("click",function(){
+  var t=today(), l=S.logs[t]=S.logs[t]||{};
+  var sl=prompt("Hours slept last night (e.g. 6.5):", l.sleep||""); if(sl===null) return;
+  var hv=prompt("HRV in ms (Health → Heart → Heart Rate Variability):", l.hrv||""); if(hv===null) return;
+  var rh=prompt("Resting heart rate in bpm:", l.rhr||""); if(rh===null) return;
+  var sH=sleepHours(sl), hN=parseInt(hv,10), rN=parseInt(rh,10);
+  if(sH) l.sleep=sH; if(hN>=5&&hN<=250) l.hrv=hN; if(rN>=30&&rN<=120) l.rhr=rN;
+  save(); renderRecovery();
+  var r=recScore(t); toast(r?"Recovery: "+r.score+"% ⌚":"Nothing saved — check the numbers");
+});
+
 /* ---------- per-set exercise logging ---------- */
 function exLog(t){ S.logs[t]=S.logs[t]||{}; S.logs[t].ex=S.logs[t].ex||{}; return S.logs[t].ex }
 function lastKg(name){
@@ -870,6 +968,7 @@ function renderToday(){
   countUp(el("tLeft"),left,1," <small>kg</small>");
   el("wInput").value=S.logs[t]&&S.logs[t].weight?S.logs[t].weight:"";
   renderSteps();
+  renderRecovery();
 
   var wo=dayWorkout(d.getDay()), btn=el("woBtn"), chips=el("cardioChips");
   /* fixed calendar + free choice: the scheduled day is the default; tapping
@@ -1388,19 +1487,25 @@ function boot(){
   checkBadges(); renderAll();
 }
 /* Apple Health / Watch bridge: opening the app as
-   /?steps=12345&kcal=640&hr=72 logs today's steps, active calories and
-   latest heart rate. Pair with an iOS Shortcut that reads Health and
+   /?steps=12345&kcal=640&hr=72&sleep=7.2&hrv=58&rhr=56 logs today's steps,
+   active calories, heart rate, sleep, HRV and resting HR (recovery).
+   Pair with an iOS Shortcut that reads Health and
    opens this URL. Steps/kcal keep the highest value of the day. */
 try{
   var _qs=new URLSearchParams(location.search);
   var _qsteps=parseInt(_qs.get("steps"),10), _qkcal=parseInt(_qs.get("kcal"),10), _qhr=parseInt(_qs.get("hr"),10);
+  var _qsleep=sleepHours(_qs.get("sleep")), _qhrv=parseInt(_qs.get("hrv"),10), _qrhr=parseInt(_qs.get("rhr"),10);
   var _okSteps=_qsteps>0&&_qsteps<=200000, _okKcal=_qkcal>0&&_qkcal<=20000, _okHr=_qhr>=25&&_qhr<=250;
-  if(_okSteps||_okKcal||_okHr){
+  var _okHrv=_qhrv>=5&&_qhrv<=250, _okRhr=_qrhr>=30&&_qrhr<=120;
+  if(_okSteps||_okKcal||_okHr||_qsleep||_okHrv||_okRhr){
     var _tq=today(); S.logs[_tq]=S.logs[_tq]||{};
     var _prev=S.logs[_tq].steps||0, _bits=[];
     if(_okSteps&&_qsteps>_prev){ S.logs[_tq].steps=_qsteps; _bits.push(_qsteps.toLocaleString()+" steps") }
     if(_okKcal&&_qkcal>(S.logs[_tq].kcal||0)){ S.logs[_tq].kcal=_qkcal; _bits.push(_qkcal.toLocaleString()+" kcal burned") }
     if(_okHr){ S.logs[_tq].hr=_qhr; _bits.push(_qhr+" bpm") }
+    if(_qsleep){ S.logs[_tq].sleep=_qsleep; _bits.push(_qsleep+"h sleep") }
+    if(_okHrv){ S.logs[_tq].hrv=_qhrv; _bits.push("HRV "+_qhrv) }
+    if(_okRhr){ S.logs[_tq].rhr=_qrhr; _bits.push("RHR "+_qrhr) }
     save();
     history.replaceState(null,"",location.pathname);
     setTimeout(function(){
