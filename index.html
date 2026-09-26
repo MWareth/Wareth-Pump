@@ -373,6 +373,7 @@
       <div class="card rec" id="recCard">
         <h2>Today&rsquo;s recovery ⌚</h2>
         <div id="recBody"></div>
+        <button class="btn" id="hkSync" style="margin-top:14px">⌚ Sync from Health</button>
         <button class="undo" id="recManual">Enter sleep / HRV / resting HR manually</button>
       </div>
 
@@ -441,7 +442,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v23 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v24 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -828,8 +829,18 @@ function renderSteps(){
    until then HRV/RHR count as neutral and sleep carries the score. */
 var SLEEP_NEED=7.5;
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
+function hnum(v){
+  var m=String(v==null?"":v).match(/\d[\d.,]*/); if(!m) return NaN;
+  var t=m[0].replace(/[.,]$/,"");
+  t=/^\d{1,3}(,\d{3})+$/.test(t) ? t.replace(/,/g,"") : t.replace(/,/g,".");
+  return parseFloat(t);
+}
 function sleepHours(v){
-  v=parseFloat(v); if(!(v>0)) return null;
+  var str=String(v==null?"":v).toLowerCase(), hm=str.match(/(\d+)\s*(?:h|hr|hrs|hour|hours)\b\s*(?:(\d+)\s*m)?/), cl=str.match(/^\s*(\d{1,2}):(\d{2})/);
+  if(hm) v=+hm[1]+(+(hm[2]||0))/60;
+  else if(cl) v=+cl[1]+(+cl[2])/60;
+  else v=hnum(str);
+  if(!(v>0)) return null;
   if(v>1440) v/=3600; else if(v>24) v/=60;   /* Shortcuts may send seconds or minutes */
   return v>=0.5&&v<=16 ? Math.round(v*10)/10 : null;
 }
@@ -852,7 +863,7 @@ function renderRecovery(){
   var t=today(), r=recScore(t), card=el("recCard"), body=el("recBody");
   card.classList.remove("g","y","r");
   if(!r){
-    body.innerHTML='<p class="sub" style="margin-top:6px">Run your Health shortcut after you wake up — your watch&rsquo;s sleep, HRV and resting heart rate turn into a daily readiness score.</p>';
+    body.innerHTML='<p class="sub" style="margin-top:6px">Run <b>Wareth Sync</b>, then tap the button below — your watch&rsquo;s sleep, HRV and resting heart rate turn into a daily readiness score.</p>';
     return;
   }
   card.classList.add(r.zone);
@@ -1486,32 +1497,51 @@ function boot(){
   el("editBtn").classList.remove("hidden");
   checkBadges(); renderAll();
 }
-/* Apple Health / Watch bridge: opening the app as
-   /?steps=12345&kcal=640&hr=72&sleep=7.2&hrv=58&rhr=56 logs today's steps,
-   active calories, heart rate, sleep, HRV and resting HR (recovery).
-   Pair with an iOS Shortcut that reads Health and
-   opens this URL. Steps/kcal keep the highest value of the day. */
+/* Apple Health / Watch bridge. Values come from an iOS Shortcut that
+   reads Health, either as a URL (/?steps=12345&kcal=640&hr=72&sleep=7.2
+   &hrv=58&rhr=56) or as copied text ("steps=9,319 kcal=640 kcal ...")
+   pasted with the Sync button. The URL route only reaches Safari's copy of
+   the app; the home-screen app has separate storage, so it uses the paste.
+   An optional date= (ISO) files the numbers under that day. Steps and kcal
+   keep the highest value of the day. */
+function applyHealth(get){
+  var ds=today(), dq=String(get("date")||"").match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(dq&&dq[0]<=today()) ds=dq[0];
+  var steps=Math.round(hnum(get("steps"))), kcal=Math.round(hnum(get("kcal"))), hr=Math.round(hnum(get("hr")));
+  var sleep=sleepHours(get("sleep")), hrv=Math.round(hnum(get("hrv"))), rhr=Math.round(hnum(get("rhr")));
+  var L=S.logs[ds]=S.logs[ds]||{}, prev=L.steps||0, bits=[];
+  if(steps>0&&steps<=200000&&steps>prev){ L.steps=steps; bits.push(steps.toLocaleString()+" steps") }
+  if(kcal>0&&kcal<=20000&&kcal>(L.kcal||0)){ L.kcal=kcal; bits.push(kcal.toLocaleString()+" kcal burned") }
+  if(hr>=25&&hr<=250){ L.hr=hr; bits.push(hr+" bpm") }
+  if(sleep){ L.sleep=sleep; bits.push(sleep+"h sleep") }
+  if(hrv>=5&&hrv<=250){ L.hrv=hrv; bits.push("HRV "+hrv) }
+  if(rhr>=30&&rhr<=120){ L.rhr=rhr; bits.push("RHR "+rhr) }
+  save();
+  return {bits:bits, day:ds, hit:ds===today()&&steps>=STEP_GOAL&&prev<STEP_GOAL};
+}
+function healthToast(r){
+  if(r.bits.length){ toast("⌚ Synced"+(r.day!==today()?" ("+fmt(r.day)+")":"")+": "+r.bits.join(" · ")); if(r.hit) celebrate() }
+  else toast("⌚ Health sync: already up to date");
+}
+function syncText(txt){
+  var kv={}, re=/\b(date|steps|kcal|hr|sleep|hrv|rhr)\s*[=:]\s*([^=]*?)(?=\s+\b(?:date|steps|kcal|hr|sleep|hrv|rhr)\s*[=:]|$)/gi, m;
+  String(txt||"").replace(/\n/g," ").replace(re,function(_,k,v){ kv[k.toLowerCase()]=v.trim(); return "" });
+  if(!Object.keys(kv).length) return toast("No watch data copied — run Wareth Sync first");
+  var r=applyHealth(function(k){return kv[k]});
+  checkBadges(); renderAll(); healthToast(r);
+}
+el("hkSync").addEventListener("click",function(){
+  function ask(){ var v=prompt("Paste your Wareth Sync data here:"); if(v) syncText(v) }
+  if(navigator.clipboard&&navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(t){ t?syncText(t):ask() }).catch(ask);
+  } else ask();
+});
 try{
   var _qs=new URLSearchParams(location.search);
-  var _qsteps=parseInt(_qs.get("steps"),10), _qkcal=parseInt(_qs.get("kcal"),10), _qhr=parseInt(_qs.get("hr"),10);
-  var _qsleep=sleepHours(_qs.get("sleep")), _qhrv=parseInt(_qs.get("hrv"),10), _qrhr=parseInt(_qs.get("rhr"),10);
-  var _okSteps=_qsteps>0&&_qsteps<=200000, _okKcal=_qkcal>0&&_qkcal<=20000, _okHr=_qhr>=25&&_qhr<=250;
-  var _okHrv=_qhrv>=5&&_qhrv<=250, _okRhr=_qrhr>=30&&_qrhr<=120;
-  if(_okSteps||_okKcal||_okHr||_qsleep||_okHrv||_okRhr){
-    var _tq=today(); S.logs[_tq]=S.logs[_tq]||{};
-    var _prev=S.logs[_tq].steps||0, _bits=[];
-    if(_okSteps&&_qsteps>_prev){ S.logs[_tq].steps=_qsteps; _bits.push(_qsteps.toLocaleString()+" steps") }
-    if(_okKcal&&_qkcal>(S.logs[_tq].kcal||0)){ S.logs[_tq].kcal=_qkcal; _bits.push(_qkcal.toLocaleString()+" kcal burned") }
-    if(_okHr){ S.logs[_tq].hr=_qhr; _bits.push(_qhr+" bpm") }
-    if(_qsleep){ S.logs[_tq].sleep=_qsleep; _bits.push(_qsleep+"h sleep") }
-    if(_okHrv){ S.logs[_tq].hrv=_qhrv; _bits.push("HRV "+_qhrv) }
-    if(_okRhr){ S.logs[_tq].rhr=_qrhr; _bits.push("RHR "+_qrhr) }
-    save();
+  if(["steps","kcal","hr","sleep","hrv","rhr"].some(function(k){return _qs.get(k)})){
+    var _r=applyHealth(function(k){return _qs.get(k)});
     history.replaceState(null,"",location.pathname);
-    setTimeout(function(){
-      if(_bits.length){ toast("⌚ Synced: "+_bits.join(" · ")); if(_okSteps&&_qsteps>=STEP_GOAL&&_prev<STEP_GOAL) celebrate(); }
-      else toast("⌚ Health sync: already up to date");
-    },700);
+    setTimeout(function(){ healthToast(_r) },700);
   }
 }catch(e){}
 boot();
