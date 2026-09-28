@@ -429,6 +429,7 @@
         <p class="sub" id="woName"></p>
         <div class="chips hidden" id="cardioChips"></div>
         <div id="woList"></div>
+        <p class="hint hidden" id="woDraft" style="margin:0 0 10px">💾 Draft saved — safe to close the app. Tap <b>Mark workout done</b> when you finish.</p>
         <button class="btn" id="woBtn">Mark workout done ✓</button>
         <button class="undo hidden" id="woUndo">Undo — unmark today</button>
       </div>
@@ -446,7 +447,7 @@
           </div>
         </div>
       </div>
-      <p class="footer">Wareth Zone v27 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
+      <p class="footer">Wareth Zone v28 · muscle-focus split · estimates are a guide, not medical advice · data stays in this browser</p>
     </div>
 
     <!-- FOOD -->
@@ -817,7 +818,8 @@ function renderSteps(){
     (function f(ts){ if(t0===null)t0=ts; var k=Math.min(1,(ts-t0)/dur); k=1-Math.pow(1-k,3);
       n.textContent=Math.round(steps*k).toLocaleString(); if(k<1)requestAnimationFrame(f) })(performance.now());
   }
-  el("stInput").value=steps||"";
+  var dr=(S.draft&&S.draft.date===t)?S.draft:{};
+  el("stInput").value=steps||dr.st||"";
   var log=S.logs[t]||{}, hasW=!!(log.hr||log.kcal);
   el("watchRow").classList.toggle("hidden",!hasW);
   el("wsHr").classList.toggle("hidden",!log.hr);
@@ -915,6 +917,13 @@ function lastSession(name,t){
   }
   return null;
 }
+/* sets save on every keystroke; this note just makes that visible */
+function showDraft(){
+  var t=today(), l=S.logs[t]||{}, ex=l.ex||{}, any=Object.keys(ex).some(function(k){
+    return (ex[k]||[]).some(function(x){return x&&(x.w||x.r)});
+  });
+  el("woDraft").classList.toggle("hidden",!any||!!l.wo);
+}
 function buildWorkout(plans,t){
   if(!Array.isArray(plans)) plans=[plans];
   var box=el("woList"), ex=exLog(t), html="";
@@ -953,7 +962,7 @@ function buildWorkout(plans,t){
     inp.addEventListener("input",function(){
       var row=inp.closest(".setrow"), name=row.getAttribute("data-ex"), i=+row.getAttribute("data-i");
       var arr=ex[name]=ex[name]||[]; arr[i]=arr[i]||{w:"",r:"",d:0};
-      arr[i][inp.getAttribute("data-f")]=inp.value; save();
+      arr[i][inp.getAttribute("data-f")]=inp.value; save(); showDraft();
     });
   });
   box.querySelectorAll(".setrow .ck").forEach(function(bt){
@@ -999,7 +1008,9 @@ function renderToday(){
   countUp(el("tRate"),wk.kg,2," <small>kg/wk</small>");
   countUp(el("tCals"),wk.cals,0," <small>kcal</small>");
   countUp(el("tLeft"),left,1," <small>kg</small>");
-  el("wInput").value=S.logs[t]&&S.logs[t].weight?S.logs[t].weight:"";
+  var dr2=(S.draft&&S.draft.date===t)?S.draft:{};
+  el("wInput").value=S.logs[t]&&S.logs[t].weight?S.logs[t].weight:(dr2.w||"");
+  showDraft();
   var lw=Object.keys(S.logs).filter(function(k){return k<t&&S.logs[k].weight}).sort().pop();
   el("wInput").placeholder=lw?"Last: "+S.logs[lw].weight+" kg ("+fmt(lw)+")":"Weight (kg)";
   renderSteps();
@@ -1430,12 +1441,18 @@ el("editBtn").addEventListener("click",function(){
   el("app").classList.add("hidden"); el("mainNav").classList.add("hidden");
   el("editBtn").classList.add("hidden"); el("onboard").classList.remove("hidden");
 });
+function keepDraft(f,v){
+  var t=today(); if(!S.draft||S.draft.date!==t) S.draft={date:t};
+  S.draft[f]=v; save();
+}
+el("stInput").addEventListener("input",function(){ keepDraft("st",el("stInput").value) });
+el("wInput").addEventListener("input",function(){ keepDraft("w",el("wInput").value) });
 el("stSave").addEventListener("click",function(){
   var v=Math.round(+el("stInput").value);
   if(!(v>=0)||v>100000) return toast("Enter today's step count");
   var t=today(); S.logs[t]=S.logs[t]||{};
   var prev=S.logs[t].steps||0;
-  S.logs[t].steps=v; save();
+  S.logs[t].steps=v; if(S.draft) delete S.draft.st; save();
   if(v>=STEP_GOAL&&prev<STEP_GOAL){ celebrate(); toast("10K DONE ⚡ goal smashed") }
   else toast("Steps logged: "+v.toLocaleString());
   checkBadges(); renderAll();
@@ -1443,7 +1460,7 @@ el("stSave").addEventListener("click",function(){
 el("wSave").addEventListener("click",function(){
   var v=+el("wInput").value;
   if(!v||v<35||v>250) return toast("Enter a weight in kg");
-  var t=today(); S.logs[t]=S.logs[t]||{}; S.logs[t].weight=v; save();
+  var t=today(); S.logs[t]=S.logs[t]||{}; S.logs[t].weight=v; if(S.draft) delete S.draft.w; save();
   checkBadges(); renderAll(); toast("Weight logged: "+v+" kg");
 });
 el("woBtn").addEventListener("click",function(){
